@@ -6,7 +6,6 @@ use App\Email;
 use App\Link;
 use App\Page;
 use Illuminate\Console\Command;
-use App\Services\CrawlPages as Crawler;
 
 class CrawlPages extends Command
 {
