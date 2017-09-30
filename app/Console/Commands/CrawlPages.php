@@ -29,7 +29,7 @@ class CrawlPages extends Command
     protected $page;
 
 
-    private $content;
+    private $content, $errors = [];
 
     /**
      * CrawlPages constructor.
@@ -83,13 +83,13 @@ class CrawlPages extends Command
             try {
                 $content = file_get_contents($page->url);
             } catch (\Exception $e){
-                $errors[] = "Could not access page $page->url \n Error: " .$e->getMessage();
+                $this->errors[] = "Could not access page $page->url \n Error: " .$e->getMessage();
                 continue;
             }
 
             $this->hydrate($content);
             $this->getEmails();
-            $this->getLinks();
+            $this->getPages();
             $this->updatePage($page->url);
 
             $bar->advance();
@@ -99,8 +99,14 @@ class CrawlPages extends Command
 
         echo "\n";
 
+        $newPages = $this->page->where("crawled", "0")->get();
+
+        if(count($newPages)){
+            $this->crawl($newPages);
+        }
+
         if(count($errors)) {
-            foreach ($errors as $error) {
+            foreach ($this->errors as $error) {
                 $this->error($error);
             }
         }
@@ -145,30 +151,29 @@ class CrawlPages extends Command
     }
 
     /**
-     * Get links from the content and adds to DB
+     * Get pages from the content and adds to DB
      * @return bool
      */
-    private function getLinks()
+    private function getPages()
     {
         $data = [];
 
         preg_match_all('/<a[^>]+href=([\'"])(?<href>.+?)\1[^>]*>/i', $this->content, $result);
 
-        foreach ($result['href'] as $link) {
-
+        foreach ($result['href'] as $page) {
             if(
-                filter_var($link, FILTER_VALIDATE_URL) &&
-                is_null(\DB::table('links')->where('url', '=', $link)->first(['id'])) &&
-                !in_array(['url' => utf8_decode($link)], $data)
+                filter_var($page, FILTER_VALIDATE_URL) &&
+                is_null(\DB::table('pages')->where('url', '=', $page)->first(['id'])) &&
+                !in_array(['url' => utf8_decode($page)], $data)
             ) {
-                $data[] = ['url' => utf8_decode($link)];
+                $data[] = ['url' => utf8_decode($page), 'crawled' => 0];
             }
 
             continue;
         }
 
         if(count($data)) {
-            Link::insert($data);
+            Page::insert($data);
         }
 
         return true;
